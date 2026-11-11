@@ -1,0 +1,642 @@
+<!DOCTYPE html><html><head><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">if(
+    "serviceWorker"
+    in navigator
+){
+
+    window.addEventListener(
+        "load",
+        () => {
+
+            navigator
+            .serviceWorker
+            .register(
+                "service-worker.js"
+            );
+
+        }
+    );
+
+}</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="manifest.json">
+
+<meta name="theme-color" content="#0078d4"><title>Vendor Finance Manager v1.5</title><style>
+body{font-family:Arial,sans-serif;background:#f4f6f9;padding:15px;max-width:900px;margin:auto}.card{background:white;padding:15px;border-radius:10px;margin:10px 0}input,select,textarea,button{width:100%;padding:10px;margin:6px 0;box-sizing:border-box}button{background:#0078d4;color:#fff;border:none} .project{background:#eef6ff;padding:8px;margin:5px 0;border-radius:6px}.stat-card{
+    background:#eef6ff;
+    padding:12px;
+    border-radius:10px;
+    margin-bottom:10px;
+    text-align:center;
+}
+
+.stat-label{
+    color:#666;
+    font-size:14px;
+}
+
+.stat-value{
+    font-size:22px;
+    font-weight:bold;
+    margin-top:5px;
+}
+
+.action-buttons{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+}
+
+.action-buttons button{
+    flex:1;
+}
+
+.card{
+    box-shadow:
+        0 2px 10px rgba(0,0,0,.08);
+}
+
+input,
+select,
+textarea,
+button{
+    font-size:16px;
+    min-height:48px;
+}
+
+textarea{
+    min-height:80px;
+}
+
+@media(max-width:600px){
+
+    body{
+        padding:8px;
+    }
+
+    h1{
+        font-size:24px;
+        text-align:center;
+    }
+
+    .card{
+        padding:12px;
+    }
+
+}</style></head><body><h1>Vendor Finance Manager v1.5</h1><div class="card"><h3>Add Project</h3><input id="projectName" placeholder="New Project Name"><input id="projectBudget" type="number" placeholder="Project Budget"><button onclick="addProject()">Add Project</button><select id="projectSelect"></select><button onclick="deleteProject()">Delete Selected Project</button></div><div class="card"><h3>Add Payment</h3><select id="paymentProject"></select><input id="vendor" placeholder="Vendor"><input id="amount" type="number" placeholder="Amount"><input id="dueDate" type="date"><select id="status"><option>Pending</option><option>Paid</option></select><textarea id="remarks" placeholder="Remarks"></textarea><button onclick="addPayment()">Save Payment</button></div><div class="card"><h3>Dashboard</h3><div id="summary" class="dashboard-grid"></div><div id="projectTotals"></div></div><div class="card"><input id="search" placeholder="Search" onkeyup="render()"><select id="filter" onchange="render()"><option>All</option><option>Pending</option><option>Paid</option></select></div><div class="card"><button onclick="exportExcel()">
+📊 Export Excel Report
+</button>
+
+<button onclick="exportData()">
+💾 Export JSON Backup
+</button>
+
+<button onclick="document.getElementById('importFile').click()">
+📂 Import JSON Backup
+</button>
+
+<input
+type="file"
+id="importFile"
+accept=".json"
+style="display:none"
+onchange="importData(event)">
+
+</div><div id="payments"></div><script>let projects=JSON.parse(localStorage.getItem('projects')||'[]');let payments=JSON.parse(localStorage.getItem('payments')||'[]');let editingIndex = null;function save(){localStorage.setItem('projects',JSON.stringify(projects));localStorage.setItem('payments',JSON.stringify(payments));}function loadProjects(){projectSelect.innerHTML='';paymentProject.innerHTML='';projects.forEach((p,i)=>{projectSelect.innerHTML+=`<option value="${i}">${p.name}</option>`;paymentProject.innerHTML+=`<option value="${p.name}">${p.name}</option>`})}function addProject(){const n=projectName.value.trim();const b=+projectBudget.value||0;if(!n)return;projects.push({name:n,budget:b});projectName.value='';projectBudget.value='';save();loadProjects();render();}function deleteProject(){if(projectSelect.value==='')return;projects.splice(projectSelect.value,1);save();loadProjects();render();}
+
+function addPayment(){
+
+    const paymentData = {
+
+        project:
+            document.getElementById(
+                "paymentProject"
+            ).value,
+
+        vendor:
+            document.getElementById(
+                "vendor"
+            ).value,
+
+        amount:
+            Number(
+                document.getElementById(
+                    "amount"
+                ).value
+            ),
+
+        dueDate:
+            document.getElementById(
+                "dueDate"
+            ).value,
+
+        status:
+            document.getElementById(
+                "status"
+            ).value,
+
+        remarks:
+            document.getElementById(
+                "remarks"
+            ).value
+
+    };
+
+    if(!paymentData.project){
+        alert("Please select a project.");
+        return;
+    }
+
+    if(!paymentData.vendor){
+        alert("Please enter a vendor.");
+        return;
+    }
+
+    if(!paymentData.amount){
+        alert("Please enter an amount.");
+        return;
+    }
+
+    if(editingIndex !== null){
+
+        payments[editingIndex] =
+            paymentData;
+
+        editingIndex = null;
+
+    }else{
+
+        payments.push(
+            paymentData
+        );
+
+    }
+
+    save();
+
+    document.getElementById(
+        "vendor"
+    ).value = "";
+
+    document.getElementById(
+        "amount"
+    ).value = "";
+
+    document.getElementById(
+        "dueDate"
+    ).value = "";
+
+    document.getElementById(
+        "remarks"
+    ).value = "";
+
+    document.getElementById(
+        "status"
+    ).value = "Pending";
+
+    render();
+}
+
+function editPayment(index){
+
+    const payment =
+        payments[index];
+
+    paymentProject.value =
+        payment.project;
+
+    vendor.value =
+        payment.vendor;
+
+    amount.value =
+        payment.amount;
+
+    dueDate.value =
+        payment.dueDate;
+
+    document.getElementById(
+    "status"
+    ).value =
+        payment.status || "Pending";
+
+    remarks.value =
+        payment.remarks || "";
+
+    editingIndex =
+        index;
+
+    window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+    });
+}
+
+function deletePayment(index){
+
+    if(
+        !confirm(
+            "Delete this payment?"
+        )
+    ){
+        return;
+    }
+
+    payments.splice(index, 1);
+
+    save();
+
+    render();
+}
+function exportData(){const blob=new Blob([JSON.stringify({projects,payments},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='vendor-finance-backup.json';a.click();}function exportExcel(){
+
+    const paymentSheet =
+    payments.map(payment => {
+
+        const project =
+        projects.find(
+            p => p.name === payment.project
+        );
+
+        return {
+
+            Project: payment.project,
+
+            Vendor: payment.vendor,
+
+            Amount: payment.amount,
+
+            Status: payment.status,
+
+            Due_Date: payment.dueDate,
+
+            Remarks: payment.remarks,
+
+            Budget: project
+                ? project.budget
+                : 0
+        };
+
+    });
+
+    const projectSheet =
+    projects.map(project => {
+
+        const spent =
+        payments
+        .filter(
+            p => p.project === project.name
+        )
+        .reduce(
+            (sum,p) =>
+            sum + Number(p.amount),
+            0
+        );
+
+        return {
+
+            Project: project.name,
+
+            Budget: project.budget,
+
+            Spent: spent,
+
+            Remaining:
+            project.budget - spent
+
+        };
+
+    });
+
+    const workbook =
+    XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(
+            paymentSheet
+        ),
+        "Payments"
+    );
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(
+            projectSheet
+        ),
+        "Project Summary"
+    );
+
+    XLSX.writeFile(
+        workbook,
+        "Vendor_Finance_Report.xlsx"
+    );
+
+}
+function importData(event){
+
+    const file =
+        event.target.files[0];
+
+    if(!file){
+        return;
+    }
+
+    const reader =
+        new FileReader();
+
+    reader.onload =
+    function(e){
+
+        try{
+
+            const backup =
+                JSON.parse(
+                    e.target.result
+                );
+
+            if(
+                !backup.projects ||
+                !backup.payments
+            ){
+                throw new Error(
+                    "Invalid backup file"
+                );
+            }
+
+            if(
+                !confirm(
+                    "Importing will replace all current data. Continue?"
+                )
+            ){
+                return;
+            }
+
+            projects =
+                backup.projects;
+
+            payments =
+                backup.payments;
+
+            save();
+
+            loadProjects();
+
+            render();
+
+            alert(
+                "Backup imported successfully."
+            );
+
+        }
+        catch(error){
+
+            alert(
+                "Invalid backup file."
+            );
+
+            console.error(error);
+        }
+
+    };
+
+    reader.readAsText(file);
+
+    event.target.value = "";
+
+}function render() {
+
+    const q =
+        document.getElementById("search")
+        .value
+        .toLowerCase();
+
+    const f =
+        document.getElementById("filter")
+        .value;
+
+    /* Dashboard */
+
+    const totalBudget =
+        projects.reduce(
+            (sum, project) =>
+                sum + Number(project.budget || 0),
+            0
+        );
+
+    const totalSpent =
+        payments.reduce(
+            (sum, payment) =>
+                sum + Number(payment.amount || 0),
+            0
+        );
+
+document.getElementById("summary").innerHTML = `
+
+<div class="stat-card">
+    <div class="stat-label">
+        Total Budget
+    </div>
+    <div class="stat-value">
+        ₹${totalBudget.toLocaleString()}
+    </div>
+</div>
+
+<div class="stat-card">
+    <div class="stat-label">
+        Total Spent
+    </div>
+    <div class="stat-value">
+        ₹${totalSpent.toLocaleString()}
+    </div>
+</div>
+
+<div class="stat-card">
+    <div class="stat-label">
+        Remaining
+    </div>
+    <div class="stat-value">
+        ₹${(totalBudget - totalSpent).toLocaleString()}
+    </div>
+</div>
+
+`;
+
+    /* Project Totals */
+
+    let totalsHtml = "";
+
+    projects.forEach(project => {
+
+        const spent =
+            payments
+            .filter(
+                payment =>
+                    payment.project === project.name
+            )
+            .reduce(
+                (sum, payment) =>
+                    sum + Number(payment.amount || 0),
+                0
+            );
+
+        totalsHtml += `
+            <div class="project">
+
+                <b>${project.name}</b>
+                <br>
+
+                Budget:
+                ₹${Number(project.budget || 0).toLocaleString()}
+
+                <br>
+
+                Spent:
+                ₹${spent.toLocaleString()}
+
+                <br>
+
+                Remaining:
+                ₹${(
+                    Number(project.budget || 0) - spent
+                ).toLocaleString()}
+
+            </div>
+        `;
+
+    });
+
+    document.getElementById(
+        "projectTotals"
+    ).innerHTML = totalsHtml;
+
+    /* Payments */
+
+    let paymentsHtml = "";
+
+    payments
+
+    .filter(payment => {
+
+        const matchesSearch =
+            JSON.stringify(payment)
+            .toLowerCase()
+            .includes(q);
+
+        const matchesFilter =
+            f === "All" ||
+            (payment.status || "Pending") === f;
+
+        return (
+            matchesSearch &&
+            matchesFilter
+        );
+
+    })
+
+    .forEach((payment, index) => {
+
+        const paymentStatus =
+            (payment.status || "Pending")
+            .trim()
+            .toLowerCase();
+        
+            console.log(
+                "Status:",
+                payment.status,
+                "Normalized:",
+                paymentStatus
+            );
+        const paymentRemarks =
+            payment.remarks || "";
+
+        const overdue =
+            paymentStatus !== "paid" &&
+            payment.dueDate &&
+            new Date(payment.dueDate) < new Date();
+
+        const borderColor =
+            overdue
+            ? "red"
+            : paymentStatus === "paid"
+            ? "green"
+            : "orange";
+
+        paymentsHtml += `
+
+        <div
+        class="card"
+        style="
+        border-left:
+        5px solid ${borderColor};">
+
+            <b>${payment.project}</b>
+
+            <br><br>
+
+            Vendor:
+            ${payment.vendor}
+
+            <br>
+
+            Amount:
+            ₹${Number(
+                payment.amount || 0
+            ).toLocaleString()}
+
+            <br>
+
+            Due Date:
+            ${payment.dueDate || "-"}
+
+            <br>
+
+            Status:
+            ${payment.status || "Pending"}
+
+            <br>
+
+            Remarks:
+            ${paymentRemarks || "-"}
+
+            ${
+                overdue
+                ? "<br><br><span style='color:red'><b>OVERDUE</b></span>"
+                : ""
+            }
+
+            <br><br>
+
+            <div class="action-buttons">
+
+            <button
+                onclick="editPayment(${index})">
+
+                ✏️ Edit
+
+            </button>
+
+            <button
+            onclick="deletePayment(${index})"
+            style="background:#d9534f;">
+
+                🗑 Delete
+
+            </button>
+
+            </div>
+
+        </div>
+
+        `;
+
+    });
+
+    document.getElementById(
+        "payments"
+    ).innerHTML =
+        paymentsHtml;
+}
+
+loadProjects();
+render();
+
+</script>
+</body>
+</html>
